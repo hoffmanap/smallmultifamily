@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Title 18 Value-Engineering Simulator</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            padding: 2rem; 
+            max-width: 1000px; 
+            margin: auto; 
+            background-color: #f9fafb; 
+            color: #111827; 
+        }
+        .header { margin-bottom: 2rem; }
+        .header h1 { margin-bottom: 0.5rem; }
+        .header p { color: #4b5563; line-height: 1.5; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        
+        .card { 
+            background: white; 
+            padding: 1.5rem; 
+            border-radius: 0.5rem; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            margin-bottom: 1.5rem;
+        }
+        .card h2 { margin-top: 0; font-size: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; }
+        
+        /* Metric Styling */
+        .metric-container { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .metric { flex: 1; min-width: 180px; padding: 1.25rem; background: #f3f4f6; border-radius: 0.5rem; }
+        .metric h3 { margin: 0 0 0.5rem 0; font-size: 0.875rem; color: #4b5563; text-transform: uppercase; letter-spacing: 0.05em; }
+        .metric p { margin: 0; font-size: 1.75rem; font-weight: bold; color: #1f2937; }
+        .metric p.savings { color: #16a34a; }
+        
+        /* Input Controls */
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        input[type="range"] { width: 100%; margin-bottom: 0.5rem; cursor: pointer; }
+        .slider-val { font-size: 1.5rem; color: #2563eb; font-weight: bold; margin-bottom: 1.5rem; display: block; }
+        
+        .radio-group div { margin-bottom: 0.75rem; }
+        .radio-group label { font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+        
+        /* Requirements Box */
+        .req-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+        .req-box { background: #eff6ff; padding: 1rem; border-radius: 0.5rem; border: 1px solid #bfdbfe; }
+        .req-box strong { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: #1e3a8a; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Zoning & Building Code Value-Engineering Simulator</h1>
+        <p>Adjust the target unit count to see how code interdependencies shift. The summary calculates the projected capital savings compared to a standard International Building Code (IBC) baseline.</p>
+    </div>
+    
+    <div class="grid">
+        <div class="card">
+            <h2>Project Programming</h2>
+            <label for="units">Target Unit Count:</label>
+            <span class="slider-val" id="unit-display">12 Units</span>
+            <input type="range" id="units" min="2" max="30" value="12" oninput="updateApp()">
+            
+            <label style="margin-top: 1.5rem;">Code Compliance Pathway:</label>
+            <div id="pathways" class="radio-group"></div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h2>Triggered Code Interdependencies</h2>
+                <div class="req-grid" id="requirements"></div>
+            </div>
+
+            <div class="card">
+                <h2>Cost Savings Summary</h2>
+                <div class="metric-container">
+                    <div class="metric">
+                        <h3>Standard IBC Baseline</h3>
+                        <p id="baseline-cost">$0</p>
+                    </div>
+                    <div class="metric">
+                        <h3>Alternative Cost</h3>
+                        <p id="projected-cost">$0</p>
+                    </div>
+                    <div class="metric">
+                        <h3>Red-Tape Capital Saved</h3>
+                        <p id="total-savings" class="savings">$0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Financial Assumptions
+        const BASE_COST_PER_UNIT = 180000;
+        
+        // Interdependent Code Logic Matrix
+        const codeMatrix = {
+            "irc": { 
+                title: "IRC Small Multifamily (≤8 Units)", 
+                mult: 0.45, 
+                reqs: { Sprinklers: "Not Required", Egress: "1 Exit (Single Stair)", "Fire Separation": "1-Hour Walls", "Travel Distance": "75 ft" } 
+            },
+            "title18": { 
+                title: "Title 18 Single-Stair (9-16 Units)", 
+                mult: 0.55, 
+                reqs: { Sprinklers: "NFPA 13D (Domestic Loop)", Egress: "1 Exit (Single Stair)", "Fire Separation": "1-Hour Walls", "Travel Distance": "125 ft" } 
+            },
+            "ibc_trans": { 
+                title: "IBC Transition (9-16 Units)", 
+                mult: 0.75, 
+                reqs: { Sprinklers: "NFPA 13R (Commercial)", Egress: "2 Exits Required (Dual Stair)", "Fire Separation": "0.5-Hour + Corridor", "Travel Distance": "125 ft" } 
+            },
+            "ibc_full": { 
+                title: "Full IBC Compliance (17+ Units)", 
+                mult: 1.00, 
+                reqs: { Sprinklers: "Full NFPA 13 (Commercial)", Egress: "2+ Exits Required", "Fire Separation": "2-Hour Minimum", "Travel Distance": "150 ft" } 
+            }
+        };
+
+        function formatCurrency(num) {
+            return '$' + num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
+
+        function updateApp() {
+            const units = parseInt(document.getElementById('units').value);
+            document.getElementById('unit-display').innerText = units + ' Units';
+
+            // Determine available pathways based on unit count
+            let available = [];
+            if (units <= 8) available = ['irc', 'ibc_full'];
+            else if (units <= 16) available = ['title18', 'ibc_trans', 'ibc_full'];
+            else available = ['ibc_full'];
+
+            const pathwaysDiv = document.getElementById('pathways');
+            const currentSelected = document.querySelector('input[name="pathway"]:checked')?.value;
+            
+            // Build radio buttons
+            pathwaysDiv.innerHTML = available.map(key => {
+                // Keep previously selected if still valid, otherwise default to the first available option
+                const isChecked = (key === currentSelected) || (!available.includes(currentSelected) && key === available[0]);
+                return `<div><label><input type="radio" name="pathway" value="${key}" ${isChecked ? 'checked' : ''} onchange="updateCalculations()"> ${codeMatrix[key].title}</label></div>`;
+            }).join('');
+
+            updateCalculations();
+        }
+
+        function updateCalculations() {
+            const units = parseInt(document.getElementById('units').value);
+            const selectedKey = document.querySelector('input[name="pathway"]:checked').value;
+            const data = codeMatrix[selectedKey];
+
+            // 1. Update Requirements UI
+            document.getElementById('requirements').innerHTML = Object.entries(data.reqs).map(([k, v]) => 
+                `<div class="req-box"><strong>${k}</strong>${v}</div>`
+            ).join('');
+
+            // 2. Update Financial Math
+            const baseline = units * BASE_COST_PER_UNIT;
+            const projected = baseline * data.mult;
+            const savings = baseline - projected;
+
+            // 3. Render
+            document.getElementById('baseline-cost').innerText = formatCurrency(baseline);
+            document.getElementById('projected-cost').innerText = formatCurrency(projected);
+            document.getElementById('total-savings').innerText = formatCurrency(savings);
+        }
+
+        // Initialize on load
+        updateApp();
+    </script>
+</body>
+</html>
