@@ -25,6 +25,6 @@ This project provides a comprehensive framework to support pro-housing policy re
    ```bash
    pip install streamlit pandas plotly pydeck
 
-   View the interdepenencies and cost savings here: https://hoffmanap.github.io/smallmultifamily/
+View the interdepenencies and cost savings here: https://hoffmanap.github.io/smallmultifamily/
 
-   The interactive tool can be found at the follow web address: 
+The interactive tool can be found at the follow web address: https://smallmultifamily.streamlit.app/
