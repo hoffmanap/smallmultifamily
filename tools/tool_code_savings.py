@@ -129,7 +129,7 @@ m3.metric(
 # 7. Embedded Charts (Visualizing the Cost Savings)
 # ---------------------------------------------------------
 st.divider()
-chart_col1, chart_col2 = st.columns(2)
+chart_col1, chart_col2 = st.columns(2) 
 
 with chart_col1:
     st.subheader("The Cost Curve Cliff vs. Title 18 Ramp")
